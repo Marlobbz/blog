@@ -5,10 +5,28 @@ import { i18n } from "@i18n/translation";
 import MainGridLayout from "@layouts/MainGridLayout.astro";
 import { getSortedPostsList } from "../utils/content-utils";
 
-const sortedPostsList = await getSortedPostsList();
+const sortedPostsList = (await getSortedPostsList()).map(post => ({
+    ...post,
+    data: {
+        ...post.data,
+        category: post.data.category ?? undefined,
+    },
+}));
+
+const tags = [...new Set(sortedPostsList.flatMap(post => post.data.tags))];
+const categories = [
+    ...new Set(
+        sortedPostsList
+            .map(post => post.data.category)
+            .filter((category): category is string => Boolean(category))
+    )
+];
 ---
 
 <MainGridLayout title={i18n(I18nKey.archive)}>
-    <ArchivePanel sortedPosts={sortedPostsList} client:only="svelte"></ArchivePanel>
+    <ArchivePanel 
+        sortedPosts={sortedPostsList}
+        tags={tags}
+        categories={categories}
+    />
 </MainGridLayout>
-
