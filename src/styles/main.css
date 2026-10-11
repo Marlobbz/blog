@@ -1,3 +1,11 @@
+/* All component stylesheets are inlined here so Tailwind resolves
+   custom classes (e.g. `.link`) within one deterministic document. */
+@import "./markdown.css";
+@import "./scrollbar.css";
+@import "./transition.css";
+@import "./photoswipe.css";
+@import "./expressive-code.css";
+
 @tailwind components;
 
 @layer components {

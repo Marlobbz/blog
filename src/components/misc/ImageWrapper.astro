@@ -27,11 +27,16 @@ const isPublic = src.startsWith("/");
 // TODO temporary workaround for images dynamic import
 // https://github.com/withastro/astro/issues/3373
 // biome-ignore lint/suspicious/noImplicitAnyLet: <check later>
-let img;
-if (isLocal) {
-	const files = import.meta.glob<ImageMetadata>("../../**", {
-		import: "default",
-	});
+	let img;
+	if (isLocal) {
+		// Only image files: a broad glob here would pull every src file (css, md, ts)
+		// into the client module graph and break the build.
+		const files = import.meta.glob<ImageMetadata>(
+			"../../**/*.{avif,gif,jpeg,jpg,png,svg,webp}",
+			{
+				import: "default",
+			},
+		);
 	let normalizedPath = path
 		.normalize(path.join("../../", basePath, src))
 		.replace(/\\/g, "/");

@@ -24,9 +24,10 @@ const categories = [
 ---
 
 <MainGridLayout title={i18n(I18nKey.archive)}>
-    <ArchivePanel 
+    <ArchivePanel
         sortedPosts={sortedPostsList}
         tags={tags}
         categories={categories}
+        client:only="svelte"
     />
 </MainGridLayout>

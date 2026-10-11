@@ -1,0 +1,740 @@
+---
+import MainGridLayout from "@layouts/MainGridLayout.astro";
+---
+
+<MainGridLayout title="管理">
+    <meta slot="head" name="robots" content="noindex, nofollow" />
+    <div class="flex w-full rounded-[var(--radius-large)] overflow-hidden relative min-h-[50vh]">
+        <div class="card-base z-10 px-6 md:px-9 py-6 relative w-full">
+            <!-- 登录视图 -->
+            <div id="login-view" class="max-w-md mx-auto py-10">
+                <h1 class="text-2xl font-bold text-center mb-2">博客管理后台</h1>
+                <p class="text-sm text-[var(--primary)] text-center mb-8">
+                    输入管理密码以发布和管理文章
+                </p>
+                <div class="flex gap-2">
+                    <input
+                        id="login-password"
+                        type="password"
+                        placeholder="管理密码"
+                        autocomplete="current-password"
+                        class="admin-input flex-1"
+                    />
+                    <button id="login-btn" class="btn-regular rounded-lg h-[2.875rem] px-5 whitespace-nowrap">
+                        登录
+                    </button>
+                </div>
+                <p id="login-error" class="hidden mt-3 text-sm text-red-500"></p>
+                <div id="setup-guide" class="hidden mt-6 text-sm rounded-lg p-4 bg-[var(--btn-regular-bg)] leading-6">
+                    <p class="font-bold mb-2">服务端尚未配置，需要在 Vercel 中设置两个环境变量：</p>
+                    <ol class="list-decimal ml-5 space-y-1">
+                        <li><code>ADMIN_PASSWORD</code>：管理后台的登录密码</li>
+                        <li><code>GITHUB_TOKEN</code>：拥有 Marlobbz/blog 仓库 Contents 读写权限的 GitHub Token</li>
+                    </ol>
+                    <p class="mt-2">设置路径：Vercel 项目 → Settings → Environment Variables，添加后重新部署一次即可。</p>
+                </div>
+            </div>
+
+            <!-- 主视图 -->
+            <div id="main-view" class="hidden">
+                <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+                    <div class="flex gap-1 bg-[var(--btn-regular-bg)] rounded-lg p-1">
+                        <button id="tab-publish" class="admin-tab is-active">发布文章</button>
+                        <button id="tab-manage" class="admin-tab">管理文章</button>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm">
+                        <span id="deploy-hint" class="hidden text-[var(--primary)]"></span>
+                        <button id="logout-btn" class="btn-plain rounded-lg h-9 px-3 text-sm">退出登录</button>
+                    </div>
+                </div>
+
+                <!-- 发布文章 -->
+                <section id="panel-publish">
+                    <div
+                        id="dropzone"
+                        class="rounded-xl border-2 border-dashed border-[var(--line-color)] hover:border-[var(--primary)] transition p-8 text-center text-[var(--primary)] cursor-pointer select-none"
+                    >
+                        <p class="font-medium">点击选择或拖拽 .md 文件到此处（支持多选）</p>
+                        <p class="text-xs mt-1 opacity-70">文件中的 frontmatter 会被自动识别并填入下方表单</p>
+                        <input id="file-input" type="file" accept=".md,.mdx,.markdown,text/markdown" multiple class="hidden" />
+                    </div>
+
+                    <div id="draft-list" class="mt-4 flex flex-col gap-4"></div>
+
+                    <div class="flex items-center justify-between mt-4 flex-wrap gap-3">
+                        <button id="new-blank-btn" class="btn-plain rounded-lg h-9 px-3 text-sm">＋ 空白新文章</button>
+                        <button id="publish-all-btn" class="btn-regular rounded-lg h-10 px-6 font-medium">
+                            发布全部
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 管理文章 -->
+                <section id="panel-manage" class="hidden">
+                    <div class="flex gap-2 mb-4">
+                        <input id="manage-search" type="search" placeholder="按标题 / 分类 / 标签搜索" class="admin-input flex-1" />
+                        <button id="refresh-btn" class="btn-plain rounded-lg h-[2.875rem] px-4 text-sm whitespace-nowrap">刷新</button>
+                    </div>
+                    <div id="manage-loading" class="hidden text-sm text-[var(--primary)] py-6 text-center">正在加载文章列表…</div>
+                    <div id="manage-empty" class="hidden text-sm opacity-60 py-6 text-center">还没有文章</div>
+                    <div id="manage-table" class="hidden overflow-x-auto">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr class="text-left text-black/50 dark:text-white/50 border-b border-[var(--line-color)]">
+                                    <th class="py-2 pr-3 font-medium">标题</th>
+                                    <th class="py-2 pr-3 font-medium">分类</th>
+                                    <th class="py-2 pr-3 font-medium">标签</th>
+                                    <th class="py-2 pr-3 font-medium whitespace-nowrap">日期</th>
+                                    <th class="py-2 font-medium text-right">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manage-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</MainGridLayout>
+
+<style>
+    .admin-input {
+        @apply rounded-lg h-[2.875rem] px-3 bg-[var(--btn-regular-bg)] outline-none text-sm
+        transition focus:bg-[var(--btn-regular-bg-hover)] w-full;
+    }
+    textarea.admin-area {
+        @apply rounded-lg p-3 bg-[var(--btn-regular-bg)] outline-none text-sm w-full
+        transition focus:bg-[var(--btn-regular-bg-hover)] leading-6;
+    }
+    .admin-tab {
+        @apply rounded-md h-9 px-4 text-sm transition text-black/60 dark:text-white/60;
+    }
+    .admin-tab.is-active {
+        @apply bg-[var(--card-bg)] text-[var(--primary)] shadow-sm;
+    }
+    .admin-chip {
+        @apply inline-flex items-center gap-1 rounded-md bg-[var(--btn-regular-bg-hover)] px-2 py-0.5 text-xs;
+    }
+    .admin-chip button {
+        @apply opacity-60 hover:opacity-100;
+    }
+    .admin-label {
+        @apply text-xs text-black/50 dark:text-white/50 mb-1 block;
+    }
+    #dropzone.is-dragover {
+        @apply border-[var(--primary)] bg-[var(--btn-plain-bg-hover)];
+    }
+</style>
+
+<script>
+    // @ts-nocheck
+    const API_URL = "/api/posts";
+    const KEY_STORAGE = "admin_key";
+
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text !== undefined) node.textContent = text;
+        return node;
+    };
+
+    let allPosts = [];
+    const drafts = [];
+    let draftSeq = 0;
+
+    function getKey() {
+        return sessionStorage.getItem(KEY_STORAGE) || "";
+    }
+
+    async function api(method, body) {
+        const res = await fetch(API_URL, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                "x-admin-key": getKey(),
+            },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+            sessionStorage.removeItem(KEY_STORAGE);
+            showLogin("登录已过期，请重新输入密码");
+            throw new Error(data.message || "未授权");
+        }
+        if (!res.ok) {
+            const err = new Error(data.message || `请求失败（HTTP ${res.status}）`);
+            err.code = data.error;
+            throw err;
+        }
+        return data;
+    }
+
+    /* ---------------- 视图切换 ---------------- */
+
+    function showLogin(message) {
+        $("main-view").classList.add("hidden");
+        $("login-view").classList.remove("hidden");
+        if (message) {
+            const errEl = $("login-error");
+            errEl.textContent = message;
+            errEl.classList.remove("hidden");
+        }
+    }
+
+    function showMain() {
+        $("login-view").classList.add("hidden");
+        $("main-view").classList.remove("hidden");
+    }
+
+    async function tryLogin(password) {
+        sessionStorage.setItem(KEY_STORAGE, password);
+        try {
+            const data = await api("GET");
+            allPosts = data.posts || [];
+            showMain();
+            renderDrafts();
+            renderManage();
+            switchTab("publish");
+        } catch (err) {
+            sessionStorage.removeItem(KEY_STORAGE);
+            if (err.code === "not_configured") {
+                $("setup-guide").classList.remove("hidden");
+                $("login-error").textContent = "服务端环境变量未配置";
+                $("login-error").classList.remove("hidden");
+            } else if (err.message !== "未授权") {
+                showLogin(err.message || "密码错误");
+            }
+        }
+    }
+
+    function switchTab(name) {
+        const isPublish = name === "publish";
+        $("tab-publish").classList.toggle("is-active", isPublish);
+        $("tab-manage").classList.toggle("is-active", !isPublish);
+        $("panel-publish").classList.toggle("hidden", !isPublish);
+        $("panel-manage").classList.toggle("hidden", isPublish);
+    }
+
+    /* ---------------- Frontmatter 解析（客户端） ---------------- */
+
+    function parseFrontmatter(text) {
+        const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+        if (!m) return { data: {}, content: text };
+        const data = {};
+        let currentKey = null;
+        for (const line of m[1].split(/\r?\n/)) {
+            if (/^\s*-\s+/.test(line) && currentKey) {
+                const item = line.replace(/^\s*-\s+/, "").trim().replace(/^["']|["']$/g, "");
+                if (!Array.isArray(data[currentKey])) data[currentKey] = [];
+                if (item) data[currentKey].push(item);
+                continue;
+            }
+            const kv = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(line);
+            if (!kv) continue;
+            const key = kv[1];
+            const value = kv[2].trim();
+            currentKey = key;
+            if (value.startsWith("[") && value.endsWith("]")) {
+                data[key] = value
+                    .slice(1, -1)
+                    .split(",")
+                    .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+                    .filter(Boolean);
+            } else if (value === "true" || value === "false") {
+                data[key] = value === "true";
+                currentKey = null;
+            } else if (/^["'].*["']$/.test(value)) {
+                data[key] = value.slice(1, -1);
+            } else {
+                data[key] = value;
+            }
+        }
+        return { data, content: text.slice(m[0].length).replace(/^\s*\n/, "") };
+    }
+
+    /* ---------------- 草稿卡片 ---------------- */
+
+    function todayStr() {
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    function makeDraft(partial) {
+        const draft = Object.assign(
+            {
+                id: ++draftSeq,
+                filename: "",
+                title: "",
+                category: "",
+                tags: [],
+                description: "",
+                published: todayStr(),
+                draft: false,
+                lang: "",
+                content: "",
+                editPath: null,
+                editSha: null,
+                status: "idle",
+            },
+            partial || {},
+        );
+        drafts.push(draft);
+        return draft;
+    }
+
+    function buildTagsEditor(draft) {
+        const wrap = el(
+            "div",
+            "flex flex-wrap gap-1 items-center rounded-lg p-1.5 bg-[var(--btn-regular-bg)] min-h-[2.5rem] w-full",
+        );
+        const input = el("input");
+        input.type = "text";
+        input.placeholder = "输入标签后回车";
+        input.className = "flex-1 min-w-[8rem] bg-transparent outline-none text-sm px-1";
+
+        function redraw() {
+            wrap.querySelectorAll(".admin-chip").forEach((c) => c.remove());
+            draft.tags.forEach((tag, i) => {
+                const chip = el("span", "admin-chip");
+                chip.append(el("span", "", tag));
+                const del = el("button", "", "×");
+                del.type = "button";
+                del.addEventListener("click", () => {
+                    draft.tags.splice(i, 1);
+                    redraw();
+                });
+                chip.append(del);
+                wrap.insertBefore(chip, input);
+            });
+        }
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === ",") {
+                e.preventDefault();
+                const v = input.value.trim();
+                if (v && !draft.tags.includes(v)) draft.tags.push(v);
+                input.value = "";
+                redraw();
+            } else if (e.key === "Backspace" && !input.value && draft.tags.length) {
+                draft.tags.pop();
+                redraw();
+            }
+        });
+        wrap.append(input);
+        redraw();
+        return wrap;
+    }
+
+    function setBodyHeight(textarea) {
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.min(1200, Math.max(240, textarea.scrollHeight))}px`;
+    }
+
+    function buildDraftCard(draft) {
+        const card = el("div", "rounded-xl border border-[var(--line-color)] p-4 md:p-5 flex flex-col gap-3");
+
+        /* 标题行 */
+        const titleRow = el("div", "flex gap-2 items-center");
+        const titleInput = el("input", "admin-input");
+        titleInput.type = "text";
+        titleInput.placeholder = "文章标题（必填）";
+        titleInput.value = draft.title;
+        titleInput.addEventListener("input", () => (draft.title = titleInput.value));
+        const removeBtn = el("button", "btn-plain rounded-lg h-9 px-3 text-sm whitespace-nowrap", "移除");
+        removeBtn.type = "button";
+        removeBtn.addEventListener("click", () => {
+            const idx = drafts.findIndex((d) => d.id === draft.id);
+            if (idx >= 0) drafts.splice(idx, 1);
+            card.remove();
+            updatePublishBtn();
+        });
+        titleRow.append(titleInput, removeBtn);
+        card.append(titleRow);
+
+        /* 分类 / 日期 / 草稿 */
+        const metaRow = el("div", "grid grid-cols-1 sm:grid-cols-3 gap-3");
+        const catWrap = el("div");
+        catWrap.append(el("label", "admin-label", "分类"));
+        const catInput = el("input", "admin-input");
+        catInput.setAttribute("list", "category-options");
+        catInput.placeholder = "如：随笔、技术";
+        catInput.value = draft.category;
+        catInput.addEventListener("input", () => (draft.category = catInput.value));
+        const datalist = el("datalist");
+        datalist.id = "category-options";
+        [...new Set(allPosts.map((p) => p.category).filter(Boolean))].forEach((c) => {
+            const opt = el("option");
+            opt.value = c;
+            datalist.append(opt);
+        });
+        catWrap.append(catInput, datalist);
+        const dateWrap = el("div");
+        dateWrap.append(el("label", "admin-label", "发布日期"));
+        const dateInput = el("input", "admin-input");
+        dateInput.type = "date";
+        dateInput.value = draft.published;
+        dateInput.addEventListener("change", () => (draft.published = dateInput.value));
+        dateWrap.append(dateInput);
+        const flagWrap = el("div");
+        flagWrap.append(el("label", "admin-label", "发布为草稿（仅自己可见）"));
+        const flagLabel = el("label", "flex items-center gap-2 h-[2.875rem] text-sm cursor-pointer");
+        const flagInput = el("input");
+        flagInput.type = "checkbox";
+        flagInput.checked = draft.draft;
+        flagInput.addEventListener("change", () => (draft.draft = flagInput.checked));
+        flagLabel.append(flagInput, el("span", "", "草稿模式"));
+        flagWrap.append(flagLabel);
+        metaRow.append(catWrap, dateWrap, flagWrap);
+        card.append(metaRow);
+
+        /* 标签 */
+        const tagsWrap = el("div");
+        tagsWrap.append(el("label", "admin-label", "标签（回车添加）"));
+        tagsWrap.append(buildTagsEditor(draft));
+        card.append(tagsWrap);
+
+        /* 摘要 */
+        const descWrap = el("div");
+        descWrap.append(el("label", "admin-label", "摘要（可选，显示在文章卡片上）"));
+        const descInput = el("textarea", "admin-area");
+        descInput.rows = 2;
+        descInput.placeholder = "一句话描述这篇文章";
+        descInput.value = draft.description;
+        descInput.addEventListener("input", () => (draft.description = descInput.value));
+        descWrap.append(descInput);
+        card.append(descWrap);
+
+        /* 正文 */
+        const bodyWrap = el("div");
+        bodyWrap.append(el("label", "admin-label", "正文（Markdown）"));
+        const bodyInput = el("textarea", "admin-area font-mono text-[13px]");
+        bodyInput.value = draft.content;
+        bodyInput.addEventListener("input", () => {
+            draft.content = bodyInput.value;
+            setBodyHeight(bodyInput);
+        });
+        bodyWrap.append(bodyInput);
+        card.append(bodyWrap);
+
+        /* 状态行 */
+        const statusRow = el("div", "text-sm hidden");
+        card.append(statusRow);
+
+        draft._statusRow = statusRow;
+        draft._card = card;
+        draft._bodyInput = bodyInput;
+        return card;
+    }
+
+    function setDraftStatus(draft, status, msg) {
+        draft.status = status;
+        const row = draft._statusRow;
+        if (!row) return;
+        row.className = "text-sm";
+        row.textContent = "";
+        if (status === "publishing") {
+            row.className += " text-[var(--primary)]";
+            row.textContent = "正在提交…";
+        } else if (status === "ok") {
+            row.className += " text-green-600 dark:text-green-400";
+            row.textContent = "✓ 已提交，Vercel 正在部署，约 1-2 分钟后上线";
+        } else if (status === "error") {
+            row.className += " text-red-500";
+            row.textContent = `✗ ${msg || "发布失败"}`;
+        } else {
+            row.classList.add("hidden");
+            return;
+        }
+    }
+
+    function renderDrafts() {
+        const list = $("draft-list");
+        list.textContent = "";
+        drafts.forEach((draft) => {
+            if (!draft._card || !draft._card.isConnected) {
+                buildDraftCard(draft);
+                if (draft._bodyInput) requestAnimationFrame(() => setBodyHeight(draft._bodyInput));
+            }
+            list.append(draft._card);
+        });
+        updatePublishBtn();
+    }
+
+    function updatePublishBtn() {
+        const pending = drafts.filter((d) => d.status !== "ok").length;
+        const btn = $("publish-all-btn");
+        btn.textContent = pending > 0 ? `发布全部（${pending}）` : "发布全部";
+        btn.disabled = pending === 0;
+        btn.classList.toggle("opacity-50", pending === 0);
+    }
+
+    /* ---------------- 文件上传 ---------------- */
+
+    async function ingestFiles(fileList) {
+        const files = Array.from(fileList).filter((f) => /\.(md|mdx|markdown)$/i.test(f.name));
+        if (!files.length) return;
+        for (const file of files) {
+            const text = await file.text();
+            const parsed = parseFrontmatter(text);
+            const fallbackTitle = file.name
+                .replace(/\.(md|mdx|markdown)$/i, "")
+                .replace(/[-_]+/g, " ")
+                .trim();
+            makeDraft({
+                filename: file.name,
+                title: parsed.data.title || fallbackTitle,
+                category: parsed.data.category || "",
+                tags: Array.isArray(parsed.data.tags) ? parsed.data.tags.map(String) : [],
+                description: parsed.data.description || "",
+                published: parsed.data.published
+                    ? new Date(parsed.data.published).toISOString().slice(0, 10)
+                    : todayStr(),
+                draft: Boolean(parsed.data.draft),
+                lang: parsed.data.lang || "",
+                content: parsed.content,
+            });
+        }
+        renderDrafts();
+        const cards = $("draft-list").children;
+        if (cards.length) {
+            cards[cards.length - 1].scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }
+
+    /* ---------------- 发布 ---------------- */
+
+    async function publishAll() {
+        const btn = $("publish-all-btn");
+        btn.disabled = true;
+        const targets = drafts.filter((d) => d.status !== "ok");
+        for (const draft of targets) {
+            if (!draft.title.trim()) {
+                setDraftStatus(draft, "error", "标题不能为空");
+                continue;
+            }
+            if (!draft.content.trim()) {
+                setDraftStatus(draft, "error", "正文不能为空");
+                continue;
+            }
+            setDraftStatus(draft, "publishing");
+            try {
+                const data = await api("POST", {
+                    filename: draft.filename || draft.title,
+                    title: draft.title.trim(),
+                    published: draft.published || todayStr(),
+                    description: draft.description.trim(),
+                    tags: draft.tags,
+                    category: draft.category.trim(),
+                    draft: draft.draft,
+                    lang: draft.lang,
+                    content: draft.content,
+                    editPath: draft.editPath,
+                    editSha: draft.editSha,
+                });
+                setDraftStatus(draft, "ok");
+                if (data.message) {
+                    $("deploy-hint").textContent = data.message;
+                    $("deploy-hint").classList.remove("hidden");
+                    setTimeout(() => $("deploy-hint").classList.add("hidden"), 8000);
+                }
+            } catch (err) {
+                setDraftStatus(draft, "error", err.message);
+            }
+        }
+        updatePublishBtn();
+        refreshPosts();
+    }
+
+    /* ---------------- 管理文章 ---------------- */
+
+    async function refreshPosts() {
+        $("manage-loading").classList.remove("hidden");
+        $("manage-empty").classList.add("hidden");
+        $("manage-table").classList.add("hidden");
+        try {
+            const data = await api("GET");
+            allPosts = data.posts || [];
+            renderManage();
+        } catch {
+            /* 401 已由 api() 统一处理 */
+        } finally {
+            $("manage-loading").classList.add("hidden");
+        }
+    }
+
+    function renderManage() {
+        const tbody = $("manage-tbody");
+        if (!tbody) return;
+        tbody.textContent = "";
+        const query = ($("manage-search").value || "").trim().toLowerCase();
+        const posts = allPosts.filter((p) => {
+            if (!query) return true;
+            return (
+                (p.title || "").toLowerCase().includes(query) ||
+                (p.category || "").toLowerCase().includes(query) ||
+                (p.tags || []).some((t) => t.toLowerCase().includes(query))
+            );
+        });
+        $("manage-empty").classList.toggle("hidden", posts.length > 0);
+        $("manage-table").classList.toggle("hidden", posts.length === 0);
+
+        for (const post of posts) {
+            const tr = el("tr", "border-b border-[var(--line-color)]");
+
+            const titleTd = el("td", "py-2.5 pr-3");
+            const titleLine = el("div", "flex items-center gap-2 flex-wrap");
+            titleLine.append(el("span", "", post.title || post.filename));
+            if (post.draft) titleLine.append(el("span", "admin-chip", "草稿"));
+            titleTd.append(titleLine);
+            tr.append(titleTd);
+
+            tr.append(el("td", "py-2.5 pr-3 whitespace-nowrap", post.category || "—"));
+
+            const tagsTd = el("td", "py-2.5 pr-3");
+            const tagsLine = el("div", "flex flex-wrap gap-1");
+            (post.tags || []).forEach((t) => tagsLine.append(el("span", "admin-chip", t)));
+            if (!(post.tags || []).length) tagsLine.append(el("span", "opacity-40", "—"));
+            tagsTd.append(tagsLine);
+            tr.append(tagsTd);
+
+            tr.append(el("td", "py-2.5 pr-3 whitespace-nowrap", post.published || "—"));
+
+            const actionsTd = el("td", "py-2.5 text-right whitespace-nowrap");
+            const editBtn = el("button", "btn-plain rounded-lg h-8 px-2.5 text-xs", "编辑");
+            editBtn.type = "button";
+            editBtn.addEventListener("click", () => editPost(post));
+            const deleteBtn = el("button", "btn-plain rounded-lg h-8 px-2.5 text-xs text-red-500", "删除");
+            deleteBtn.type = "button";
+            deleteBtn.addEventListener("click", () => deletePostConfirm(post));
+            actionsTd.append(editBtn, deleteBtn);
+            tr.append(actionsTd);
+
+            tbody.append(tr);
+        }
+    }
+
+    function editPost(post) {
+        const existing = drafts.find((d) => d.editPath === post.path && d.status !== "ok");
+        if (existing) {
+            switchTab("publish");
+            if (existing._card) existing._card.scrollIntoView({ behavior: "smooth" });
+            return;
+        }
+        makeDraft({
+            filename: post.filename,
+            title: post.title,
+            category: post.category,
+            tags: [...(post.tags || [])],
+            description: post.description,
+            published: post.published || todayStr(),
+            draft: post.draft,
+            lang: post.lang,
+            content: post.content || "",
+            editPath: post.path,
+            editSha: post.sha,
+        });
+        renderDrafts();
+        switchTab("publish");
+        const cards = $("draft-list").children;
+        if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: "smooth" });
+    }
+
+    async function deletePostConfirm(post) {
+        if (
+            !window.confirm(
+                `确定删除文章「${post.title || post.filename}」吗？此操作会提交到仓库（可在 Git 历史中恢复）。`,
+            )
+        ) {
+            return;
+        }
+        try {
+            const data = await api("DELETE", { path: post.path, sha: post.sha });
+            if (data.message) {
+                $("deploy-hint").textContent = data.message;
+                $("deploy-hint").classList.remove("hidden");
+                setTimeout(() => $("deploy-hint").classList.add("hidden"), 6000);
+            }
+            await refreshPosts();
+        } catch (err) {
+            window.alert(`删除失败：${err.message}`);
+        }
+    }
+
+    /* ---------------- 初始化（兼容 swup 重复进入） ---------------- */
+
+    function initAdmin() {
+        const loginBtn = $("login-btn");
+        if (!loginBtn || loginBtn.dataset.adminBound) return;
+        loginBtn.dataset.adminBound = "1";
+
+        loginBtn.addEventListener("click", () => {
+            const v = $("login-password").value.trim();
+            if (v) tryLogin(v);
+        });
+        $("login-password").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") loginBtn.click();
+        });
+        $("logout-btn").addEventListener("click", () => {
+            drafts.length = 0;
+            sessionStorage.removeItem(KEY_STORAGE);
+            showLogin();
+        });
+
+        $("tab-publish").addEventListener("click", () => switchTab("publish"));
+        $("tab-manage").addEventListener("click", () => {
+            switchTab("manage");
+            refreshPosts();
+        });
+
+        const dropzone = $("dropzone");
+        const fileInput = $("file-input");
+        dropzone.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", () => {
+            ingestFiles(fileInput.files);
+            fileInput.value = "";
+        });
+        ["dragenter", "dragover"].forEach((evt) =>
+            dropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropzone.classList.add("is-dragover");
+            }),
+        );
+        ["dragleave", "drop"].forEach((evt) =>
+            dropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                dropzone.classList.remove("is-dragover");
+            }),
+        );
+        dropzone.addEventListener("drop", (e) => {
+            if (e.dataTransfer && e.dataTransfer.files.length) ingestFiles(e.dataTransfer.files);
+        });
+
+        $("new-blank-btn").addEventListener("click", () => {
+            makeDraft();
+            renderDrafts();
+            const cards = $("draft-list").children;
+            if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: "smooth" });
+        });
+
+        $("publish-all-btn").addEventListener("click", publishAll);
+        $("refresh-btn").addEventListener("click", refreshPosts);
+        $("manage-search").addEventListener("input", renderManage);
+
+        if (getKey()) {
+            tryLogin(getKey());
+        }
+    }
+
+    initAdmin();
+    if (window.swup && window.swup.hooks) {
+        window.swup.hooks.on("page:view", initAdmin);
+    } else {
+        document.addEventListener("swup:enable", () => {
+            initAdmin();
+            if (window.swup && window.swup.hooks) {
+                window.swup.hooks.on("page:view", initAdmin);
+            }
+        });
+    }
+</script>

@@ -1,9 +1,15 @@
-# About
-This is the demo site for [Fuwari](https://github.com/saicaca/fuwari).
+# 关于我
 
-::github{repo="saicaca/fuwari"}
+你好，我是 **Marlobbz**，信息安全专业学生。
 
-> ### Sources of images used in this site
-> - [Unsplash](https://unsplash.com/)
-> - [星と少女](https://www.pixiv.net/artworks/108916539) by [Stella](https://www.pixiv.net/users/93273965)
-> - [Rabbit - v1.4 Showcase](https://civitai.com/posts/586908) by [Rabbit_YourMajesty](https://civitai.com/user/Rabbit_YourMajesty)
+这里记录我的学习笔记、技术探索和日常随笔，主要关注：
+
+- Information Security / CTF
+- C++ / Linux
+- 一些有趣的折腾
+
+## 关于本站
+
+本站基于 [Fuwari](https://github.com/saicaca/fuwari) 模板构建，托管在 Vercel 上。
+
+感谢访问我的博客。
